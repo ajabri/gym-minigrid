@@ -641,6 +641,7 @@ class MiniGridEnv(gym.Env):
 
         # Done completing task
         done = 6
+        noop = -1
 
     def __init__(
         self,
@@ -1151,7 +1152,8 @@ class MiniGridEnv(gym.Env):
         # Done action (not used by default)
         elif action == self.actions.done:
             pass
-
+        elif action == self.actions.noop:
+            pass
         else:
             assert False, "unknown action"
 

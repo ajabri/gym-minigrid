@@ -29,6 +29,46 @@ class ReseedWrapper(gym.core.Wrapper):
         obs, reward, done, info = self.env.step(action)
         return obs, reward, done, info
 
+
+class NoOpAsync(gym.core.Wrapper):
+    """
+    Wrapper which holds an associated cost with each meta-action.
+
+    costs: costs of each meta-action in time
+    noop: which action corresponds to a no-op
+
+    """
+
+    def __init__(self, env, costs, noop=-1, which_obs='first'):
+        super().__init__(env)
+        self.costs = np.array(costs)
+        self.noop = noop
+        self.which_obs = which_obs
+
+    def step(self, action):
+        '''
+            Assume action is composed of meta-action + action
+        '''
+        meta_action, action = np.split(action, [1])
+        cost = self.costs[meta_action][0]
+
+        _obs = dict()
+        obs, reward, done, info = self.env.step(action)
+
+        _obs['first'] = _obs['last'] = obs
+        
+        for _ in range(cost):
+            if not done:
+                _obs['last'], reward, done, info = self.env.step(self.noop)
+
+        obs = _obs[self.which_obs]
+
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+
 class ActionBonus(gym.core.Wrapper):
     """
     Wrapper which adds an exploration bonus.
@@ -192,10 +232,11 @@ class RGBImgPartialObsWrapper(gym.core.ObservationWrapper):
     This can be used to have the agent to solve the gridworld in pixel space.
     """
 
-    def __init__(self, env, tile_size=8):
+    def __init__(self, env, tile_size=8, normalize=True):
         super().__init__(env)
 
         self.tile_size = tile_size
+        self.normalize = normalize
 
         obs_shape = env.observation_space.spaces['image'].shape
         self.observation_space.spaces['image'] = spaces.Box(
@@ -212,7 +253,12 @@ class RGBImgPartialObsWrapper(gym.core.ObservationWrapper):
             obs['image'],
             tile_size=self.tile_size
         )
+        
+        if self.normalize:
+            # rgb_img_partial = rgb_img_partial - 128
+            rgb_img_partial = rgb_img_partial #/ 255
 
+        # import pdb; pdb.set_trace()
         return {
             'mission': obs['mission'],
             'image': rgb_img_partial
@@ -266,14 +312,14 @@ class FlatObsWrapper(gym.core.ObservationWrapper):
             low=0,
             high=255,
             shape=(imgSize + self.numCharCodes * self.maxStrLen,),
-            dtype='uint8'
+            dtype='float32'
         )
 
         self.cachedStr = None
         self.cachedArray = None
 
     def observation(self, obs):
-        image = obs['image']
+        image = obs['image']/255.
         mission = obs['mission']
 
         # Cache the last-encoded mission string
@@ -289,14 +335,14 @@ class FlatObsWrapper(gym.core.ObservationWrapper):
                 elif ch == ' ':
                     chNo = ord('z') - ord('a') + 1
                 assert chNo < self.numCharCodes, '%s : %d' % (ch, chNo)
-                strArray[idx, chNo] = 1
+                strArray[idx, chNo] = 1.0
 
             self.cachedStr = mission
             self.cachedArray = strArray
 
         obs = np.concatenate((image.flatten(), self.cachedArray.flatten()))
 
-        return obs
+        return obs.astype(np.float32)
 
 class ViewSizeWrapper(gym.core.Wrapper):
     """

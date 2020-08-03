@@ -60,7 +60,7 @@ class DynamicObstaclesEnv(MiniGridEnv):
     def step(self, action):
         # Invalid action
         if action >= self.action_space.n:
-            action = 0
+            action = -1
 
         # Check if there is an obstacle in front of the agent
         front_cell = self.grid.get(*self.front_pos)
@@ -76,9 +76,20 @@ class DynamicObstaclesEnv(MiniGridEnv):
                 self.grid.set(*old_pos, None)
             except:
                 pass
+            
+        dist_to_obstacle = []
+        for i in range(len(self.obstacles)):
+            dist_to_obstacle.append(
+                ((self.agent_pos - self.obstacles[i].cur_pos)**2).sum()
+            )
+        dist_to_obstacle = min(dist_to_obstacle) ** 0.5
+
+        # import pdb; pdb.set_trace()
 
         # Update the agent's position/direction
         obs, reward, done, info = MiniGridEnv.step(self, action)
+
+        info = dict(dist_to_obstacle=dist_to_obstacle)
 
         # If the agent tried to walk over an obstacle or wall
         if action == self.actions.forward and not_clear:
