@@ -1295,3 +1295,8 @@ class MiniGridEnv(gym.Env):
             self.window.set_caption(self.mission)
 
         return img
+
+    def close(self):
+        if self.window:
+            self.window.close()
+        return
